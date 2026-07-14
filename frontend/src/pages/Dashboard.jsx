@@ -4,14 +4,17 @@ import FileUpload from "../components/FileUpload.jsx";
 import DocumentList from "../components/DocumentList.jsx";
 
 function formatStorage(bytes) {
-  const gb = bytes / (1024 * 1024 * 1024);
-  return `${gb.toFixed(1)} GB`;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 export default function Dashboard() {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState("Dashboard");
+  const [trashedDocs, setTrashedDocs] = useState([]);
 
   const fetchDocs = useCallback(async () => {
     const { data } = await api.get("/documents");
@@ -19,16 +22,28 @@ export default function Dashboard() {
     setLoading(false);
   }, []);
 
+  const fetchTrash = useCallback(async () => {
+    const { data } = await api.get("/documents/trash");
+    setTrashedDocs(data);
+  }, []);
+
   useEffect(() => {
     fetchDocs();
   }, [fetchDocs]);
+
+  useEffect(() => {
+    if (activeSection === "Trash") fetchTrash();
+  }, [activeSection, fetchTrash]);
 
   const totalStorageBytes = 5 * 1024 * 1024 * 1024;
   const usedStorageBytes = useMemo(
     () => documents.reduce((sum, doc) => sum + (doc.sizeBytes || 0), 0),
     [documents]
   );
-  const storagePercent = Math.min(100, Math.round((usedStorageBytes / totalStorageBytes) * 100));
+  const storagePercent = Math.min(
+    100,
+    Number(((usedStorageBytes / totalStorageBytes) * 100).toFixed(1)) || 0
+  );
   const recentDocuments = [...documents]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 5);
@@ -39,7 +54,20 @@ export default function Dashboard() {
 
   const handleDocumentChange = useCallback((event) => {
     if (event?.type === "delete") {
-      setDocuments((prev) => prev.filter((doc) => doc._id !== event.doc?._id));
+      // trashed from main list
+      if (event.trashed) {
+        setDocuments((prev) => prev.filter((doc) => doc._id !== event.doc?._id));
+        return;
+      }
+
+      // permanently deleted from trash
+      setTrashedDocs((prev) => prev.filter((doc) => doc._id !== event.doc?._id));
+      return;
+    }
+
+    if (event?.type === "restore") {
+      setTrashedDocs((prev) => prev.filter((d) => d._id !== event.doc?._id));
+      fetchDocs();
       return;
     }
 
@@ -73,7 +101,11 @@ export default function Dashboard() {
       return (
         <div className="section-panel">
           <h2>Trash</h2>
-          <p>Deleted files will stay here until you permanently remove them.</p>
+          {trashedDocs.length === 0 ? (
+            <div className="empty-state">Trash is empty.</div>
+          ) : (
+            <DocumentList documents={trashedDocs} onChange={handleDocumentChange} inTrash />
+          )}
         </div>
       );
     }

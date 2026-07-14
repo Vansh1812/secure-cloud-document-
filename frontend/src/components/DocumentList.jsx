@@ -15,16 +15,58 @@ function extOf(name) {
   return parts.length > 1 ? parts.pop().toUpperCase() : "FILE";
 }
 
-export default function DocumentList({ documents, onChange }) {
+export default function DocumentList({ documents, onChange, inTrash = false }) {
   const download = async (doc) => {
-    const { data } = await api.get(`/documents/${doc._id}/download-url`);
-    window.open(data.url, "_blank", "noopener,noreferrer");
+    try {
+      const { data } = await api.get(`/documents/${doc._id}/download-url`);
+      const res = await fetch(data.url);
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = doc.originalName || "file";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      // fallback to opening in new tab if blob download fails
+      try {
+        const { data } = await api.get(`/documents/${doc._id}/download-url`);
+        window.open(data.url, "_blank", "noopener,noreferrer");
+      } catch (e) {
+        alert(err.message || "Download failed");
+      }
+    }
   };
 
   const remove = async (doc) => {
-    if (!window.confirm(`Delete "${doc.originalName}"? This can't be undone.`)) return;
+    if (inTrash) {
+      if (!window.confirm(`Permanently delete "${doc.originalName}"? This can't be undone.`)) return;
+      await api.delete(`/documents/${doc._id}/permanent`);
+      onChange?.({ type: "delete", doc });
+      return;
+    }
+
+    if (!window.confirm(`Delete "${doc.originalName}"? This will move the file to Trash.`)) return;
     await api.delete(`/documents/${doc._id}`);
-    onChange?.({ type: "delete", doc });
+    onChange?.({ type: "delete", doc, trashed: true });
+  };
+
+  const open = async (doc) => {
+    try {
+      const { data } = await api.get(`/documents/${doc._id}/download-url`);
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      alert(err.response?.data?.message || "Unable to open file");
+    }
+  };
+
+  const restore = async (doc) => {
+    if (!window.confirm(`Restore "${doc.originalName}" from Trash?`)) return;
+    await api.post(`/documents/${doc._id}/restore`);
+    onChange?.({ type: "restore", doc });
   };
 
   if (documents.length === 0) {
@@ -48,8 +90,16 @@ export default function DocumentList({ documents, onChange }) {
           <span className="doc-meta">{formatSize(doc.sizeBytes)}</span>
           <span className="doc-meta">{formatDate(doc.createdAt)}</span>
           <div className="doc-actions">
+            {!inTrash && <button className="icon-btn" onClick={() => open(doc)}>Open</button>}
             <button className="icon-btn" onClick={() => download(doc)}>Download</button>
-            <button className="icon-btn danger" onClick={() => remove(doc)}>Delete</button>
+            {inTrash ? (
+              <>
+                <button className="icon-btn" onClick={() => restore(doc)}>Restore</button>
+                <button className="icon-btn danger" onClick={() => remove(doc)}>Delete permanently</button>
+              </>
+            ) : (
+              <button className="icon-btn danger" onClick={() => remove(doc)}>Delete</button>
+            )}
           </div>
         </div>
       ))}

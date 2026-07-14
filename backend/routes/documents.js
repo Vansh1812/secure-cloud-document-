@@ -120,9 +120,52 @@ router.delete("/:id", protect, async (req, res, next) => {
     const doc = await Document.findOne({ _id: req.params.id, owner: req.user._id });
     if (!doc) return res.status(404).json({ message: "Document not found" });
 
+    // Soft-delete: move to trash by updating status. Do not remove S3 object yet.
+    doc.status = "trashed";
+    await doc.save();
+    res.json({ message: "Document moved to trash", doc });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// List trashed documents for the user
+router.get("/trash", protect, async (req, res, next) => {
+  try {
+    const docs = await Document.find({
+      status: "trashed",
+      $or: [{ owner: req.user._id }, { sharedWith: req.user._id }],
+    }).sort({ createdAt: -1 });
+
+    res.json(docs);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Restore a trashed document
+router.post("/:id/restore", protect, async (req, res, next) => {
+  try {
+    const doc = await Document.findOne({ _id: req.params.id, owner: req.user._id });
+    if (!doc) return res.status(404).json({ message: "Document not found" });
+
+    doc.status = "uploaded";
+    await doc.save();
+    res.json(doc);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Permanently delete from S3 and MongoDB
+router.delete("/:id/permanent", protect, async (req, res, next) => {
+  try {
+    const doc = await Document.findOne({ _id: req.params.id, owner: req.user._id });
+    if (!doc) return res.status(404).json({ message: "Document not found" });
+
     await deleteObject(doc.s3Key);
     await doc.deleteOne();
-    res.json({ message: "Document deleted" });
+    res.json({ message: "Document permanently deleted" });
   } catch (err) {
     next(err);
   }
