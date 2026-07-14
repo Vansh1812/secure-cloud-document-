@@ -104,6 +104,7 @@ metadata pulled from MongoDB.
 
 bash:-
 docker pull yourusername/secure-doc-backend:latest
+
 docker pull yourusername/secure-doc-frontend:latest
 
 docker network create secure-doc-net
