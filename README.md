@@ -3,7 +3,8 @@
 A full-stack document management app: React frontend, Express/MongoDB backend,
 and AWS S3 for storage — built so the server never sees raw file bytes and
 every file operation is authenticated and short-lived.
-
+## Live deploy link:-
+https://doc-mang.netlify.app/
 ## Architecture
 
 ```
