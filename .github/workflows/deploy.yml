@@ -20,8 +20,8 @@ jobs:
           context: ./backend
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/secure-doc-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
   build-and-push-frontend:
     runs-on: ubuntu-latest
     steps:
