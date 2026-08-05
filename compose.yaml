@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: sds-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  backend:
+    build: ./secure-doc-system/backend
+    container_name: sds-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./secure-doc-system/backend/.env
+    environment:
+      # Overrides .env so the backend always talks to the compose-network
+      # Mongo container, not localhost, regardless of what's in .env
+      MONGO_URI: mongodb://mongo:27017/secure-doc-system
+      CLIENT_URL: http://localhost:5173
+    depends_on:
+      - mongo
+
+  frontend:
+    build:
+      context: ./secure-doc-system/frontend
+      # The browser (running on your host machine) needs a URL it can
+      # reach directly — the published host port, not the Docker-internal
+      # service name. In Kubernetes this changes to a relative "/api"
+      # routed by Ingress instead (see k8s/ingress.yaml).
+      args:
+        VITE_API_URL: http://localhost:5000/api
+    container_name: sds-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
