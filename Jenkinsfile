@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        BACKEND_IMAGE  = "yourusername/secure-doc-backend:latest"
-        FRONTEND_IMAGE = "yourusername/secure-doc-frontend:latest"
+        BACKEND_IMAGE  = "vansh1812/secure-doc-backend:latest"
+        FRONTEND_IMAGE = "vansh1812/secure-doc-frontend:latest"
         VITE_API_URL   = "https://secure-cloud-document.onrender.com/api"
     }
 
